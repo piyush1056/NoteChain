@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-declare_id!("git init");
+declare_id!("G48CMVhqv9r9qpbg9zbFwWj1LSe9d5jnRRvE6rzfNNZS");
 
 #[program]
 pub mod note_app {
