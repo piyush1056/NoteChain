@@ -17,6 +17,8 @@ describe("note_app", () => {
     program.programId
   );
 
+  const friend = anchor.web3.Keypair.generate();
+
   it("Creates a user profile", async () => {
     const username = "testuser";
 
@@ -106,6 +108,90 @@ describe("note_app", () => {
     const note = await program.account.note.fetch(notePda);
     expect(note.content).to.equal(newContent);
     console.log("Updated note:", note);
+  });
+
+  it("Shares a note with a friend", async () => {
+    const noteId = 1;
+
+    // Note PDA
+    const [notePda] = anchor.web3.PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("note"),
+        wallet.publicKey.toBuffer(),
+        new anchor.BN(noteId).toArrayLike(Buffer, "le", 8),
+      ],
+      program.programId
+    );
+
+    // Shared Access PDA (Seeds: "share" + notePda + friendPubkey)
+    const [sharedAccessPda] = anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from("share"), notePda.toBuffer(), friend.publicKey.toBuffer()],
+      program.programId
+    );
+
+    const tx = await program.methods
+      .shareNote(friend.publicKey)
+      .accounts({
+        signer: wallet.publicKey,
+        note: notePda,
+        sharedAccess: sharedAccessPda,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      })
+      .rpc();
+
+    console.log("Note shared with friend! Tx:", tx);
+
+    // Verify
+    const sharedAccount = await program.account.sharedAccess.fetch(sharedAccessPda);
+    expect(sharedAccount.friend.toBase58()).to.equal(friend.publicKey.toBase58());
+  });
+
+  it("Friend can update the shared note", async () => {
+    const noteId = 1;
+    const sharedContent = "This note was updated by my friend!";
+
+      // Airdrop some SOL to the friend so they can pay for transactions
+    const signature = await provider.connection.requestAirdrop(
+      friend.publicKey,
+      1 * anchor.web3.LAMPORTS_PER_SOL
+    );
+    const latestBlockhash = await provider.connection.getLatestBlockhash();
+    await provider.connection.confirmTransaction({
+      signature,
+      ...latestBlockhash,
+    });
+
+    // Note PDA (Seeds: "note" + ownerPubkey + noteId)
+    const [notePda] = anchor.web3.PublicKey.findProgramAddressSync(
+      [
+        Buffer.from("note"),
+        wallet.publicKey.toBuffer(),
+        new anchor.BN(noteId).toArrayLike(Buffer, "le", 8),
+      ],
+      program.programId
+    );
+
+    // Shared Access PDA
+    const [sharedAccessPda] = anchor.web3.PublicKey.findProgramAddressSync(
+      [Buffer.from("share"), notePda.toBuffer(), friend.publicKey.toBuffer()],
+      program.programId
+    );
+
+    const tx = await program.methods
+      .updateSharedNote(sharedContent)
+      .accounts({
+        signer: friend.publicKey, // Friend is the signer now
+        note: notePda,
+        sharedAccess: sharedAccessPda,
+      })
+      .signers([friend]) 
+      .rpc();
+
+    console.log("Shared Note updated! Tx:", tx);
+
+    // Verify the change
+    const note = await program.account.note.fetch(notePda);
+    expect(note.content).to.equal(sharedContent);
   });
 
   it("Deletes a note", async () => {

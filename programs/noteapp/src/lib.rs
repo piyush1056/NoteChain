@@ -58,6 +58,21 @@ pub mod note_app {
         msg!("Note #{} deleted successfully", ctx.accounts.note.id);
         Ok(())
     }
+
+    pub fn share_note(ctx: Context<ShareNote>, friend: Pubkey) -> Result<()> {
+        let shared_access = &mut ctx.accounts.shared_access;
+        shared_access.friend = friend;
+        shared_access.note_pda = ctx.accounts.note.key();
+        msg!("Note shared successfully with: {}", friend);
+        Ok(())
+    }
+
+    pub fn update_shared_note(ctx: Context<UpdateSharedNote>, new_content: String) -> Result<()> {
+        let note = &mut ctx.accounts.note;
+        note.content = new_content;
+        msg!("Shared Note #{} updated securely by collaborator", note.id);
+        Ok(())
+    }
 }
 
 
@@ -106,7 +121,7 @@ pub struct CreateNote<'info> {
     #[account(mut)]
     pub signer: Signer<'info>,
     
-    /// CHECK: This is safe because we verify it matches user_profile.authority
+    /// CHECK: This account is safe because it's validated via `has_one = authority` constraint on the user_profile account. No data is read from it directly.
     pub authority: UncheckedAccount<'info>,
     
     pub system_program: Program<'info, System>,
@@ -131,7 +146,7 @@ pub struct UpdateNote<'info> {
     #[account(mut)]
     pub signer: Signer<'info>,
     
-   
+   /// CHECK: This account is safe because the `has_one = authority` constraint ensures it matches the note's authority, which is already validated against signer.
     pub authority: UncheckedAccount<'info>,
 }
 
@@ -155,8 +170,48 @@ pub struct DeleteNote<'info> {
     #[account(mut)]
     pub signer: Signer<'info>,
     
-    /
+    /// CHECK: This account is safe because the `close = signer` constraint requires authority == signer, and `has_one = authority` validates it against the note.
     pub authority: UncheckedAccount<'info>,
+}
+
+#[derive(Accounts)]
+#[instruction(friend: Pubkey)]
+pub struct ShareNote<'info> {
+    #[account(mut)]
+    pub signer: Signer<'info>, 
+
+    #[account(
+        mut,
+        constraint = note.authority == signer.key() @ ErrorCode::UnauthorizedAccess
+    )]
+    pub note: Account<'info, Note>,
+
+    #[account(
+        init,
+        payer = signer,
+        space = 8 + SharedAccess::INIT_SPACE,
+        seeds = [b"share", note.key().as_ref(), friend.as_ref()],
+        bump
+    )]
+    pub shared_access: Account<'info, SharedAccess>,
+    
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct UpdateSharedNote<'info> {
+    #[account(mut)]
+    pub signer: Signer<'info>, 
+
+    #[account(mut)]
+    pub note: Account<'info, Note>,
+
+    #[account(
+        seeds = [b"share", note.key().as_ref(), signer.key().as_ref()],
+        bump,
+        constraint = shared_access.friend == signer.key() @ ErrorCode::UnauthorizedAccess
+    )]
+    pub shared_access: Account<'info, SharedAccess>,
 }
 
 #[account]
@@ -177,6 +232,13 @@ pub struct Note {
     pub title: String,          
     #[max_len(500)]
     pub content: String,      
+}
+
+#[account]
+#[derive(InitSpace)]
+pub struct SharedAccess {
+    pub friend: Pubkey,
+    pub note_pda: Pubkey,
 }
 
 
