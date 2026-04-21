@@ -1,70 +1,107 @@
-Solana Notes: A Decentralized CRUD Application
-A high-performance, decentralized note-taking application built on the Solana Blockchain using the Anchor Framework. This project demonstrates advanced Solana concepts like Program Derived Addresses (PDAs), deterministic account derivation, and on-chain state management.
+# NoteChain 📝 | Decentralized Note-Taking DApp
 
-🚀 Overview
-Unlike traditional MERN stack applications where data is stored in a centralized database (like MongoDB), Solana Notes stores every user profile and individual note as a unique account on the Solana ledger. By leveraging PDAs, the application ensures that data is easily retrievable without a centralized indexer while maintaining strict ownership security.
+NoteChain is a secure, decentralized note-taking application built on the Solana blockchain. Designed to eliminate the need for centralized databases, this project leverages the speed and low fees of Solana to provide users with a fully on-chain, censorship-resistant platform for personal and collaborative notes. 
 
-🛠 Tech Stack
-Smart Contract: Rust, Anchor Framework
+The smart contract (program) is written in Rust using the Anchor framework, providing a robust backend that seamlessly integrates with a modern Next.js/React frontend.
 
-Language: Rust (Backend), TypeScript (Testing/Frontend)
+## 📖 Project Overview
 
-Tools: Solana CLI, Mocha/Chai (Testing), Borsh (Serialization)
+Traditional note-taking apps rely on central servers, leaving user data vulnerable to breaches or platform lock-in. NoteChain solves this by giving users absolute cryptographic ownership of their data. Every note, user profile, and sharing permission is strictly governed by smart contract logic and validated via the user's wallet signature. 
 
-Blockchain: Solana (Devnet/Localhost)
+This project demonstrates advanced Solana blockchain development concepts, including Program Derived Addresses (PDAs), secure state management,secure multi-user access,and on-chain data ownership.
 
-🏗 Architecture & Key Features
-1. Deterministic PDA Mapping
-Instead of searching a database, the program derives addresses based on user seeds.
+## ✨ Key Features
 
-User Profile PDA: ["user_profile", wallet_pubkey]
+* **Wallet-Linked User Profiles**: Users initialize a unique on-chain profile mapped directly to their Solana wallet address, tracking their total note count and identity.
+* **100% On-Chain Storage**: Full CRUD (Create, Read, Update, Delete) functionality where note content is stored securely on the Solana ledger.
+* **Secure Collaboration (The "Shared with Friend" Feature)**: A standout collaborative feature that allows a note owner to grant specific edit permissions to a friend's wallet. The collaborator can update the note seamlessly without altering the original ownership rights.
+* **Frontend-Ready**: Designed with highly optimized data structures to be easily consumed by a Next.js (TypeScript) client.
 
-Note PDA: ["note", wallet_pubkey, note_id]
-This ensures that every user has a unique namespace and notes are indexed numerically.
+## 🛠️ Tech Stack
 
-2. State Management
-User Profiles: Tracks metadata and a global note_count for each user.
+* **Smart Contract / Backend**: Rust, Anchor Framework
+* **Blockchain Network**: Solana (Devnet)
+* **Testing & Scripting**: TypeScript, Mocha, Chai, `@coral-xyz/anchor`
+* **Target Client-Side**: Next.js, React, Tailwind CSS (Dark Theme UI optimized)
 
-On-Chain CRUD: Full support for Creating, Reading, Updating, and Deleting (Closing) accounts.
+## 🧠 Architecture & State Management
 
-Rent Management: Uses Anchor's close constraint to delete accounts and reclaim Lamports (SOL), ensuring cost-efficient storage.
+Instead of traditional database tables, NoteChain uses **Program Derived Addresses (PDAs)** to deterministically locate and manage state. This ensures O(1) lookup times and strict data isolation.
 
-3. Robust Security Constraints
-Ownership Verification: Uses has_one = authority and custom error_codes to ensure only the creator can modify or delete their notes.
+1. **`UserProfile` PDA**: 
+   * **Seeds**: `[b"user_profile", wallet_address]`
+   * **Role**: Acts as the root account for a user. Stores their chosen username and acts as an auto-incrementing counter (`note_count`) to assign unique IDs to new notes.
+2. **`Note` PDA**: 
+   * **Seeds**: `[b"note", wallet_address, note_id]`
+   * **Role**: The core data structure. Holds the note's title, content, and the public key of the original author.
+3. **`SharedAccess` PDA**: 
+   * **Seeds**: `[b"share", note_pda, friend_wallet_address]`
+   * **Role**: A decentralized permission slip. It cryptographically binds a specific note to a specific collaborator's wallet, enabling secure multi-user editing.
 
-Space Optimization: Implements InitSpace to precisely calculate and allocate account memory, minimizing rent costs.
+## 🛡️ Robust Security Constraints
 
-💻 Smart Contract Instructions
+Security is a primary focus of this smart contract. The program heavily utilizes Anchor's constraint system to prevent unauthorized access and malicious data manipulation:
 
-Instruction	Description	Security Check
-create_user	Initializes a new UserProfile PDA for a unique wallet.	Prevents duplicate profiles using init.
-Notes	Increments user's note_count and initializes a new Note PDA.	Validates signer is the profile owner.
-update_note	Modifies the content field of an existing Note account.	Ensures signer == authority.
-delete_note	Closes the account and returns SOL to the payer.	Verifies ownership before closing.
+* **Signer Validation**: Operations like creating, updating, or deleting notes strictly require the `signer` to match the note's `authority`.
+* **`has_one` Constraints**: Automatically verifies that the authority account passed in the transaction exactly matches the authority stored inside the Note or User Profile.
+* **Custom Error Handling**: Implements explicit `ErrorCode::UnauthorizedAccess` to cleanly reject invalid operations (e.g., a user trying to edit a note they don't own).
+* **Secure Account Closing**: The `delete_note` instruction safely closes the PDA account and refunds the rent lamports back to the original signer, preventing stranded data.
 
-🧪 Testing
-The project includes a comprehensive TypeScript test suite using Anchor's Mocha/Chai integration.
+## 🧪 Testing
 
-Bash
-# To run the tests
-anchor test
-The tests verify:
+The test suite covers the full workflow:
 
-Correct PDA derivation on the client-side.
+* user creation
+* note creation
+* note updates
+* sharing notes
+* collaborator updates
+* note deletion
 
-Successful state transitions (Create -> Update -> Delete).
+Tests simulate real multi-user behavior, including shared access.
 
-Unauthorized access prevention (Security Test).
+## 🚀 Local Setup & Installation
 
-📈 Future Roadmap
-Frontend Integration: Developing a React/Next.js dashboard using @solana/wallet-adapter.
+Follow these steps to run the blockchain backend and test suite locally.
 
-Encryption: Implementing client-side AES encryption so only the owner can read note content.
+### Prerequisites
+* Rust
+* Solana CLI
+* Anchor CLI
+* Node.js & Yarn (or npm)
 
-Tags & Categories: Adding metadata fields to notes for better organization.
+### Quick Start
 
-👨‍💻 Author
-Piyush – Final Year CS Student
+1. Clone the repository
+   ```bash
+   git clone <your-repository-url>
+   cd notechain
 
+2. Install dependencies
+   ```bash
+    npm install   
 
+3. Build the Anchor program
+   ```bash
+   anchor build
+
+4. Start local Solana validator
+   ```bash
+   solana-test-validator
+
+5. Deploy the program
+   ```bash
+   anchor deploy  
+
+6. Run tests
+   ```bash
+   anchor test 
+
+## 👨‍💻 Author
+
+Piyush Raj   
+
+## 📄 License
+
+This project is licensed under the MIT License.
 
